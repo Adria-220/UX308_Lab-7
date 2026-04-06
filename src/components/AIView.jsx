@@ -1,99 +1,96 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
+import { StyleSheet, View, ScrollView, KeyboardAvoidingView, Keyboard, Platform, Text } from 'react-native';
 import { handleInput } from '../Order';
-import ChatView from './ChatView'
+import ChatView from './ChatView';
 import WelcomeView from './WelcomeView';
 
-export default function(){
-  const [messages, setMessages] = useState([]);
-  const [inputBarText, setInputBarText] = useState('');
-  const scrollViewRef = useRef(null);
+export default function () {
+    const [messages, setMessages] = useState([]);
+    const [inputBarText, setInputBarText] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const scrollViewRef = useRef(null);
 
-  // Scroll to bottom helper
-  const scrollToBottom = (animated = true) => {
-    // Small timeout ensures the layout has calculated before scrolling
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated });
-    }, 100);
-  };
-
-  useEffect(() => {
-    // Setup keyboard listeners
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => scrollToBottom());
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => scrollToBottom());
-
-    // Initial scroll
-    scrollToBottom(false);
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
+    const scrollToBottom = (animated = true) => {
+        setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated });
+        }, 100);
     };
-  }, []);
 
-  // Scroll whenever messages update
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener('keyboardDidShow', () => scrollToBottom());
+        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => scrollToBottom());
+        scrollToBottom(false);
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
-  const sendMessage = () => {
-    if (inputBarText.trim().length === 0) return;
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, isTyping]);
 
-    // Correct way to update state: create a NEW array
-    let newMessages = [{ direction: 'right', text: inputBarText }];
-    const aResponse = handleInput(inputBarText);
-    for(const message of aResponse){
-      newMessages.push({direction: "left", text: message});
-    }
-    setMessages([...messages, ...newMessages]);
-    setInputBarText('');
-  };
+    const sendMessage = () => {
+        if (inputBarText.trim().length === 0) return;
 
-  return (
-    <View style={styles.outer}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={{ flex: 1 }}
-      >
-        {messages.length?(
-        <ChatView scrollToBottom={scrollToBottom} 
-        sendMessage={sendMessage} 
-        scrollViewRef={scrollViewRef} 
-        styles={styles} 
-        messages={messages} 
-        setInputBarText={setInputBarText}
-        inputBarText={inputBarText}  />
+        // Add the user's message immediately
+        const userMessage = { direction: 'right', text: inputBarText };
+        const currentInput = inputBarText;
+        setMessages(prev => [...prev, userMessage]);
+        setInputBarText('');
 
-        ):(
-          <WelcomeView 
-          scrollToBottom={scrollToBottom} 
-        sendMessage={sendMessage} 
-        scrollViewRef={scrollViewRef} 
-        styles={styles} 
-        messages={messages} 
-        setInputBarText={setInputBarText}
-        inputBarText={inputBarText}  />
+        // Show typing indicator after a short delay
+        setIsTyping(true);
 
-        )}
-      </KeyboardAvoidingView>
-    </View>
-  );
-};
+        setTimeout(() => {
+            const aResponse = handleInput(currentInput);
+            const responseMessages = aResponse.map(msg => ({ direction: 'left', text: msg }));
+            setIsTyping(false);
+            setMessages(prev => [...prev, ...responseMessages]);
+        }, 1500); // 1.5 second delay to simulate thinking
+    };
 
-//TODO: separate these out. This is what happens when you're in a hurry!
+    return (
+        <View style={styles.outer}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+            >
+                {messages.length || isTyping ? (
+                    <ChatView
+                        scrollToBottom={scrollToBottom}
+                        sendMessage={sendMessage}
+                        scrollViewRef={scrollViewRef}
+                        styles={styles}
+                        messages={messages}
+                        setInputBarText={setInputBarText}
+                        inputBarText={inputBarText}
+                        isTyping={isTyping}
+                    />
+                ) : (
+                    <WelcomeView
+                        scrollToBottom={scrollToBottom}
+                        sendMessage={sendMessage}
+                        scrollViewRef={scrollViewRef}
+                        styles={styles}
+                        messages={messages}
+                        setInputBarText={setInputBarText}
+                        inputBarText={inputBarText}
+                    />
+                )}
+            </KeyboardAvoidingView>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
-
-  //ChatView
-
-  outer: {
-    flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    backgroundColor: 'white'
-  },
-
-  messages: {
-    flex: 1
-  },
-
-})
+    outer: {
+        flex: 1,
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        backgroundColor: 'white'
+    },
+    messages: {
+        flex: 1
+    },
+});
